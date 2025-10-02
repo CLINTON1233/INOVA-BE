@@ -25,3 +25,5 @@ backend/yolov8n.pt
 .idea/
 .DS_Store
 Thumbs.db
+
+# YOLO training weight files
