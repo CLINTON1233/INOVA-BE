@@ -196,34 +196,21 @@ def predict():
 
             # Debug info
             print(f"YOLO save_dir: {results[0].save_dir}")
-            
-            # Cari file hasil deteksi
+                    # Sebelumnya: kode gagal mencari possible_paths
+            # Ganti dengan:
+            result_dir = os.path.join(app.config['RESULT_FOLDER'], 'deteksi')
             result_image_path = None
-            possible_paths = [
-                os.path.join(results[0].save_dir, unique_filename),
-                os.path.join(results[0].save_dir, original_filename),
-                os.path.join(app.config['RESULT_FOLDER'], 'deteksi', unique_filename),
-                os.path.join(app.config['RESULT_FOLDER'], 'deteksi', original_filename)
-            ]
-            
-            for path in possible_paths:
-                if os.path.exists(path):
-                    result_image_path = path
-                    print(f"Found result at: {path}")
-                    break
-            
-            # Buat URL path dengan encoding untuk spasi
-            if result_image_path and os.path.exists(result_image_path):
-                # Path relatif dari folder static
-                if result_image_path.startswith('static/'):
-                    relative_path = result_image_path
-                else:
-                    relative_path = os.path.relpath(result_image_path, start='static')
-                
-                # Encode URL untuk handle spasi dan karakter khusus
-                web_path = f"/static/{quote(relative_path.replace(os.sep, '/'))}"
-                
-                # Tambahkan gambar ke HTML hasil
+
+            if os.path.exists(result_dir):
+                files = [os.path.join(result_dir, f) for f in os.listdir(result_dir)]
+                files = [f for f in files if os.path.isfile(f)]
+                if files:
+                    # ambil file terbaru berdasarkan waktu dibuat
+                    result_image_path = max(files, key=os.path.getctime)
+                    print(f"Detected image path: {result_image_path}")
+
+            if result_image_path:
+                web_path = '/' + result_image_path.replace('\\', '/')
                 detected_images_html += f'''
                 <div style="margin-bottom: 30px; padding: 15px; border: 2px solid #28a745; border-radius: 8px; background: #f8fff8;">
                     <p style="margin: 0 0 10px 0;"><b> {original_filename}</b></p>
@@ -232,31 +219,38 @@ def predict():
                 </div>
                 '''
                 success_count += 1
-                
             else:
-                # List semua file di directory hasil untuk debugging
-                result_dir = os.path.join(app.config['RESULT_FOLDER'], 'deteksi')
-                existing_files = []
-                if os.path.exists(result_dir):
-                    existing_files = os.listdir(result_dir)
-                
+                # Ganti bagian debug, jangan pakai possible_paths
+                existing_files = os.listdir(result_dir) if os.path.exists(result_dir) else []
                 detected_images_html += f'''
                 <div style="margin-bottom: 30px; padding: 15px; border: 2px solid #dc3545; border-radius: 8px; background: #fff8f8;">
                     <p style="margin: 0 0 10px 0;"><b> {original_filename}</b> - File hasil tidak ditemukan</p>
                     <p style="margin: 5px 0; font-size: 12px;">Unique filename: {unique_filename}</p>
-                    <p style="margin: 5px 0; font-size: 12px;">Save dir: {results[0].save_dir}</p>
+                    <p style="margin: 5px 0; font-size: 12px;">Save dir: {result_dir}</p>
                     <p style="margin: 5px 0; font-size: 12px;">Files in result dir: {', '.join(existing_files[:5])}</p>
                 </div>
                 '''
                 error_count += 1
-                
+
         except Exception as e:
+            # Tangani error umum agar blok try selalu memiliki except/finally
+            # Gunakan fallback untuk variabel yang mungkin belum terdefinisi
+            orig_name = locals().get('original_filename', getattr(file, 'filename', ''))
+            uniq_name = locals().get('unique_filename', 'N/A')
+            result_dir = locals().get('result_dir', os.path.join(app.config['RESULT_FOLDER'], 'deteksi'))
+            existing_files = os.listdir(result_dir) if os.path.exists(result_dir) else []
+
+            print(f"Error processing {orig_name}: {e}")
             detected_images_html += f'''
             <div style="margin-bottom: 30px; padding: 15px; border: 2px solid #dc3545; border-radius: 8px; background: #fff8f8;">
-                <p style="margin: 0 0 10px 0;"><b> {file.filename}</b> - Error: {str(e)}</p>
+                <p style="margin: 0 0 10px 0;"><b> {orig_name}</b> - Error saat memproses: {str(e)}</p>
+                <p style="margin: 5px 0; font-size: 12px;">Unique filename: {uniq_name}</p>
+                <p style="margin: 5px 0; font-size: 12px;">Save dir: {result_dir}</p>
+                <p style="margin: 5px 0; font-size: 12px;">Files in result dir: {', '.join(existing_files[:5])}</p>
             </div>
             '''
             error_count += 1
+
 
     # Summary
     summary_html = f'''
